@@ -1,0 +1,87 @@
+// AIOps Sentinel — topology, blast radius and information flow (Soufflé Datalog).
+// Evaluated bottom-up, stratified negation. Two uses:
+//   Alert_Parsed (T2)         alert_context/1 — what the model may see and target
+//   Dependency_Check (T7/T8)  veto/2 for the proposed target + facts handed to Prolog (T9)
+.type Svc <: symbol
+
+// ---- base facts: read-only topology snapshot ---------------------------------
+.decl depends_on(x:Svc, y:Svc)
+.input depends_on
+.decl sensitive(s:Svc)
+.input sensitive
+.decl critical(s:Svc)
+.input critical
+.decl reads_from(s:Svc, store:Svc)
+.input reads_from
+.decl sends_to(s:Svc, e:Svc)
+.input sends_to
+.decl external(e:Svc)
+.input external
+.decl blast_radius_limit(n:number)
+.input blast_radius_limit
+.decl alerting(s:Svc)
+.input alerting
+.decl target(t:Svc)
+.input target
+
+// ---- transitive dependency ----------------------------------------------------
+.decl affected_by(x:Svc, t:Svc)
+affected_by(x, t) :- depends_on(x, t).
+affected_by(x, t) :- depends_on(x, y), affected_by(y, t).
+
+// ---- T2: context the model may use (the ??target domain of the sketch) --------
+.decl alert_context(x:Svc)
+.output alert_context
+alert_context(s) :- alerting(s).
+alert_context(x) :- alerting(s), depends_on(s, x).
+alert_context(x) :- alerting(s), affected_by(x, s).
+
+// ---- blast radius of acting on the target --------------------------------------
+.decl blast(t:Svc, x:Svc)
+blast(t, x) :- target(t), affected_by(x, t).
+
+.decl dependents(t:Svc, n:number)
+.output dependents
+dependents(t, n) :- target(t), n = count : { blast(t, _) }.
+
+.decl critical_in_blast(t:Svc, x:Svc)
+.output critical_in_blast
+critical_in_blast(t, x) :- blast(t, x), critical(x).
+
+// ---- sensitive data: exposure and forbidden flows ------------------------------
+.decl exposed_to_sensitive(x:Svc)
+.output exposed_to_sensitive
+exposed_to_sensitive(x) :- depends_on(x, y), sensitive(y).
+exposed_to_sensitive(x) :- reads_from(x, y), sensitive(y).
+exposed_to_sensitive(x) :- depends_on(x, y), exposed_to_sensitive(y).
+
+.decl sensitive_target(t:Svc)
+.output sensitive_target
+sensitive_target(t) :- target(t), sensitive(t).
+sensitive_target(t) :- target(t), exposed_to_sensitive(t).
+
+.decl sensitive_flow(s:Svc, e:Svc)
+.output sensitive_flow
+sensitive_flow(s, e) :- exposed_to_sensitive(s), sends_to(s, e), external(e).
+
+// ---- the Dependency_Check verdict ----------------------------------------------
+.decl veto(t:Svc, reason:symbol)
+.output veto
+veto(t, "blast_radius")   :- dependents(t, n), blast_radius_limit(k), n >= k.
+veto(t, "sensitive_flow") :- target(t), sensitive_flow(t, _).
+
+// ---- extension: AdvisorMachine (T32, T36) ---------------------------------------
+.decl incident_root_cause(i:symbol, s:Svc, m:symbol)
+.input incident_root_cause
+.decl covered_by_alert(s:Svc, m:symbol)
+.input covered_by_alert
+.decl proposed_alert(s:Svc, m:symbol)
+.input proposed_alert
+
+.decl detection_gap(i:symbol, s:Svc, m:symbol)
+.output detection_gap
+detection_gap(i, s, m) :- incident_root_cause(i, s, m), !covered_by_alert(s, m).
+
+.decl duplicate_rec(s:Svc, m:symbol)
+.output duplicate_rec
+duplicate_rec(s, m) :- proposed_alert(s, m), covered_by_alert(s, m).

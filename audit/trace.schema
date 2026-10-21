@@ -1,0 +1,25 @@
+audit/trace.schema — what P12 validates
+
+Trace {
+  incident_id   string          # UUID, generated at alert_received
+  events        Event[]         # ordered; one incident may contain several actions (retries)
+  final_state   string          # terminal state reached
+  started_at    datetime
+  completed_at  datetime | null
+}
+Event {
+  name          string          # closed vocabulary below
+  timestamp     datetime
+  phase         1..5            # §4 — non-decreasing within one action_hash (P16)
+  action_hash   string | null   # null only before llm_action_proposed
+  actor         string          # the component authorized to claim this event (§7.2)
+  payload       object          # verdicts, proofs, unsat cores, approver identity, counterexamples
+}
+
+valid event names:
+  alert_received, logs_parsed, llm_action_proposed, llm_output_invalid,
+  opa_allowed, opa_denied, datalog_clear, datalog_sensitive_path, prolog_allowed, prolog_forbidden,
+  validation_passed, temporal_violation, validation_failed, risk_low, risk_high,
+  human_approved, human_rejected, approval_timeout, z3_sat, z3_unsat, execute,
+  execution_succeeded, execution_failed, metrics_healthy, metrics_still_degraded,
+  retry_available, retries_exhausted, escalation_notified, human_resolution_recorded, audit_log_created

@@ -1,0 +1,29 @@
+# A proposal is exactly one program. Anything that does not parse emits llm_output_invalid (T4).
+program      = proposal | recommendation ;
+
+proposal     = "propose" , verb , "(" , target , { "," , param } , ")" ,
+               "because" , evidence , { "," , evidence } ,
+               "confidence" , interval , ";" ;
+
+verb         = remediation | read_only | destructive ;
+remediation  = "restart_pod" | "restart_service" | "scale_out" | "rollback" | "restart_master_db" ;
+read_only    = "list_services" | "get_metrics" ;
+destructive  = "delete_volume" | "drop_database" | "disable_monitoring" | "exfiltrate" ;
+               # destructive verbs PARSE (recognized, logged as a likely injection) but are never allowed
+
+target       = identifier ;                          # type rule: must name an entity in the snapshot
+param        = "delta" , "=" , integer
+             | "revision" , "=" , identifier ;
+evidence     = ( "alert" | "log" | "metric" ) , "(" , identifier , ")" ;   # ids only, never text
+interval     = "[" , probability , "," , probability , "]" ;
+
+# extension — AdvisorMachine (T34)
+recommendation = "recommend" , "alert" , "(" , identifier , "," , identifier , ","
+                 , "warn" , "=" , number , "," , "critical" , "=" , number , "," , severity , ")"
+                 , "because" , evidence , { "," , evidence } , ";" ;
+severity     = "info" | "warning" | "critical" ;
+
+identifier   = letter , { letter | digit | "_" } ;
+integer      = digit , { digit } ;
+number       = integer , [ "." , integer ] ;
+probability  = "0" , [ "." , integer ] | "1" , [ "." , "0" ] ;

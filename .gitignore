@@ -1,0 +1,23 @@
+# Byte-compiled / cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Third-party binary — download separately (see README), not original work
+tools/opa.exe
+
+# Presentation decks, videos, and images — not part of the code/docs portfolio
+*.pdf
+*.pptx
+*.mp4
+*.png
+*.jpg
+*.jpeg
+AIOps_Sentinel_Final_Consolidated.html
+
+# Stray local session artifact
+claude --resume*.txt
+
+# Local env / secrets (defensive — none currently exist)
+.env
+*.jsonl
